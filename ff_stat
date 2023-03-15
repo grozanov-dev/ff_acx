@@ -1,0 +1,9 @@
+#!/bin/bash
+
+tmp_file="/tmp/ffmpeg.$$.wav"
+
+ffmpeg -i $1 -ac 1 -ar 48k $tmp_file
+
+ffmpeg -i $tmp_file -af loudnorm=dual_mono=true:print_format=summary -f null -
+
+rm $tmp_file

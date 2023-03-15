@@ -1,0 +1,20 @@
+{
+    "video" : {
+        "bitrate"   : "5M",
+        "codec"     : "libx265",
+        "framerate" : "30"
+    },
+    "audio" : {
+        "lra"     : [ -32.0, -20.0 ],
+        "codec"   : "aac",
+        "bitrate" : "128k",
+        "filters" : {
+            "highpass"  : [ { "f" : 60    } ],
+            "lowpass"   : [ { "f" : 12500 } ],
+            "equalizer" : [
+                { "f" : 80,   "t" : "q", "w" : 2.0, "g" :  2.0 },
+                { "f" : 240,  "t" : "q", "w" : 6.0, "g" : -3.0 }
+            ]
+        }
+    }
+}

@@ -1,0 +1,128 @@
+#!/usr/bin/perl
+
+use strict;
+use feature qw/say/;
+use JSON qw/decode_json/;
+use Getopt::Long;
+use File::Slurp qw/read_file/;
+
+sub get_clap_timestamp ($$) {
+    my ($file, $to) = @_;
+
+    my $tmp = "/tmp/$0.$$.wav";
+
+    `ffmpeg -to $to -i "$file" -ac 1 $tmp`;
+
+    my $log = `ffmpeg -nostats -i $tmp -filter_complex ebur128=peak=true -f null - 2>&1`;
+
+    `rm $tmp`;
+
+    $log =~ /Peak:\s+(-?[0-9\.]+)/;
+
+    my $peak = $1;
+
+    for ( split /\n/, $log ) {
+        next unless m/Parsed_ebur128/;
+        next if m/Summary/;
+        next if m/inf/;
+
+        my @P = split /[\s\:]+/;
+        my ($t, $tpk) = map { $P[$_] } 4, 22;
+
+        return $t if $tpk == $peak;
+    }
+}
+
+sub get_loudness_data ($) {
+    my ( $file ) = @_;
+
+    my $json = `ffmpeg -i "$file" -af loudnorm=dual_mono=true:print_format=json -f null - 2>&1`;
+
+    $json =~ /(\{[^\{\}]+\})/;
+
+    my $data = decode_json($1);
+    my $lmap = {
+        offset          => $data->{ target_offset },
+        measured_i      => $data->{ input_i },
+        measured_lra    => $data->{ input_lra },
+        measured_tp     => $data->{ input_tp },
+        measured_thresh => $data->{ input_thresh },
+    };
+
+    return $lmap;
+}
+
+{
+
+    my (
+        $aud, $vid,
+        $thresh, $to,
+        $name,
+    );
+
+    GetOptions(
+        'v=s' => \$vid,
+        'a=s' => \$aud,
+        's=f' => \$to,
+        'o=s' => \$name,
+    );
+
+    say 'Init...';
+
+    my $config = read_file('ff_conf.json');
+    my $c_data = decode_json($config);
+
+    my ($v, $a) = map { $c_data->{$_} } qw/video audio/;
+
+    my $c_filters = $a->{ filters };
+    my @filters;
+
+    for my $f_name ( keys %$c_filters) {
+        for my $f_params ( @{ $c_filters->{ $f_name } } ) {
+            push @filters, $f_name . '=' . join ':', map { $_ . '=' . $f_params->{$_} } keys %$f_params;
+        }
+    }
+
+    my $v_opts = sprintf("-c:v %s -b:v %s -vf fps=%s", map { $v->{$_} } qw/codec bitrate framerate/);
+    my $a_opts = sprintf("-c:a %s -b:a %s", map { $a->{$_} } qw/codec bitrate/);
+
+    my $tmp = "/tmp/$0.$$";
+
+    my $ac = get_clap_timestamp $aud, $to;
+    my $vc = get_clap_timestamp $vid, $to;
+    my $ta = sprintf( "%.2f", $ac - $vc + $to );
+
+    my ($gate, $knee) = @{ $a->{ lra } };
+
+    my $filters = [
+        @filters,
+        'agate=detection=rms:attack=150:release=150:threshold='       . sprintf('%.3f', 10 ** ($gate / 20)),
+        'acompressor=attack=5:release=50:ratio=2:makeup=2:threshold=' . sprintf('%.3f', 10 ** ($knee / 20)),
+        'alimiter=limit=0.7:level=false',
+    ];
+
+    my $af = join ',', @$filters;
+
+    `ffmpeg -ss $ta -i "$aud" -ac 1 -af $af $tmp.1.wav`;
+
+    my $data  = get_loudness_data "$tmp.1.wav";
+    my $loud  = join ':', map { $_ . '=' . $data->{ $_ } } keys %$data;
+
+    `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav`;
+    `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4`;
+    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name`;
+    `rm $tmp.*`;
+
+}
+
+1;
+
+=pod
+
+Version 3.0
+
+Usage:
+    ./ff_sync -v video -a audio -o output -s silence_sec
+
+Example^
+    ./ff_sync -v vid_01.mp4 -a aud_01.wav -o test.mp4 -s 6
