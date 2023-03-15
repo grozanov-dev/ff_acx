@@ -20,7 +20,7 @@ Params:
 
 Config structure:
 # ff_conf.json
-
+```json
 {
     "video" : {                         // Video params
         "bitrate"   : "5M",             // Video bitrate 5M is good for 1080p on Youtube
@@ -46,7 +46,7 @@ Config structure:
         }
     }
 }
-
+```
 Instructions:
 
     - Start recording audio with your recorder.
