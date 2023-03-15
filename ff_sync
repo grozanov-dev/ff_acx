@@ -56,8 +56,7 @@ sub get_loudness_data ($) {
 
     my (
         $aud, $vid,
-        $thresh, $to,
-        $name,
+        $to, $name,
     );
 
     GetOptions(
