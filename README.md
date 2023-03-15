@@ -47,7 +47,7 @@ Config structure:
     }
 }
 
-#Instructions:
+Instructions:
 
     - Start recording audio with your recorder.
     - Start recording video with your camera (with camera mic on).
