@@ -4,12 +4,15 @@ ffmpeg based script that sync separate recorded audio and video and makeup audio
 Version 3.0
 
 Usage:
+
     ./ff_sync -v video -a audio -o output -s silence_sec
 
 Example:
+
     ./ff_sync -v vid_01.mp4 -a aud_01.wav -o test.mp4 -s 6
 
 Params:
+
     -v -- video file
     -a -- audio file
     -o -- output file
@@ -17,6 +20,7 @@ Params:
 
 Config structure:
 # ff_conf.json
+
 {
     "video" : {                         // Video params
         "bitrate"   : "5M",             // Video bitrate 5M is good for 1080p on Youtube
@@ -43,13 +47,13 @@ Config structure:
     }
 }
 
+#Instructions:
 
-Instructions:
-    * Start recording audio with your recorder.
-    * Start recording video with your camera (with camera mic on).
-    * Wait 2-3 secs in silence and make a hand clap.
-    * Wait another 2-3 secs and start recording.
-    * Run ff_stat script on audio:
+    - Start recording audio with your recorder.
+    - Start recording video with your camera (with camera mic on).
+    - Wait 2-3 secs in silence and make a hand clap.
+    - Wait another 2-3 secs and start recording.
+    - Run ff_stat script on audio:
 
     $ ./ff_stat audio.wav
 
@@ -66,7 +70,7 @@ Instructions:
         }
     ...
 
-    * Check the silence length in video stream:
+    - Check the silence length in video stream:
         ! The silence in video before start of content cannot be longer than the silence before clap in audio.
         ! Alson clap in audio can not appear before clap in video (just start record audio before video).
 
@@ -91,6 +95,6 @@ Instructions:
     audio.wav: -----|---------|||||||||||
                     ^ clap in audio
 
-    $ ./ff_sync -v cideo.mp4 -a audio.wav -o podcast.mp4 -s 5
+    $ ./ff_sync -v video.mp4 -a audio.wav -o podcast.mp4 -s 5
 
     * Enjoy!
