@@ -105,7 +105,10 @@ sub set_btn_event {
 sub _doSync {
     my ($self, $event) = @_;
 
-    $event->Skip;
+    my ($v, $a, $o, $s) = map { $self->{$_}->GetValue() }
+        qw/text_getVideoFile text_getAudioFile text_outputFileName text_silenceLength/;
+
+    `./ff_sync -v "$v" -a "$a" -o $o -s $s `;
 }
 
 sub _getVideoFile {
