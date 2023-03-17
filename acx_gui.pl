@@ -30,12 +30,21 @@ use constant _TABS => [
 
 use constant _LAYOUT => {
     video_panel => [
-        [ 'TextCtrl::inFile', wxID_ANY, '', wxDefaultPosition, [200, 34] ],
-        [ 'Button::doLoad',   wxID_ANY, 'Load' ],
-        [ 'Button::doPlay',   wxID_ANY, 'Play' ],
+        [ 'TextCtrl::videoFile', wxID_ANY, '', wxDefaultPosition, [200, 34] ],
+        [ 'Button::doLoadVideo', wxID_ANY, 'Load' ],
+        [ 'Button::doPlayVideo', wxID_ANY, 'Play' ],
+    ],
+    audio_panel => [
+        [ 'TextCtrl::audioFile', wxID_ANY, '', wxDefaultPosition, [200, 34] ],
+        [ 'Button::doLoadAudio', wxID_ANY, 'Load' ],
     ],
 };
 
+use constant _STATUS => {
+    threshold  => 0,
+    integrated => 1,
+    progress   => 2,
+};
 
 sub new {
     my( $self, $title ) = @_;
@@ -45,17 +54,18 @@ sub new {
         -1,
         $title,
         wxDefaultPosition,
-        Wx::Size->new(800, 600),
+        Wx::Size->new(400, 200),
         wxDEFAULT_DIALOG_STYLE,
         ''
     );
-
     $self->readConfig('./ff_conf.json');
 
     $self->{main_sizer}  = Wx::BoxSizer->new(wxHORIZONTAL);
 
     $self->createTabs('main_sizer');
+
     $self->createWidgets('video_panel');
+    $self->createWidgets('audio_panel');
 
     $self->createLayout('main_sizer');
 
@@ -66,7 +76,16 @@ sub new {
 sub createLayout {
     my ( $self, $sizer ) = @_;
 
+    $self->{ status_bar } = Wx::StatusBar->new($self, wxID_ANY, wxSB_NORMAL, '');
+    $self->{ status_bar }->SetFieldsCount(1);
+
+    $self->SetStatusBar( $self->{ status_bar } );
     $self->SetSizer( $self->{ $sizer } );
+
+    $self->{ status_text } = sprintf "Treshold: %.2f\tLoudness: %.2f",
+        $self->{ Conf }->{ audio }->{ lra }->@*;
+
+    $self->setStatusText;
 
     $self->Layout;
 }
@@ -94,8 +113,8 @@ sub createTabs {
         my ($tab_name, $tab_label) = @$tab;
 
         $self->{ $tab_name } = {};
-        $self->{ $tab_name }->{ sizer } = Wx::BoxSizer->new(wxHORIZONTAL);
-        $self->{ $tab_name }->{ page  } = Wx::Panel->new($book, wxID_ANY);
+        $self->{ $tab_name }->{ sizer} = Wx::BoxSizer->new(wxHORIZONTAL);
+        $self->{ $tab_name }->{ page } = Wx::Panel->new($book, wxID_ANY);
         $self->{ $tab_name }->{ page }->SetSizer($self->{ $tab_name }->{ sizer });
 
         $book->AddPage($self->{ $tab_name }->{ page }, $tab_label);
@@ -108,21 +127,27 @@ sub readConfig {
     my ( $self, $path ) = @_;
     my $config = read_file( $path );
 
-    $self->{Conf} = decode_json( $config );
+    $self->{ Conf } = decode_json( $config );
 }
 
-sub doPlay {
+sub setStatusText {
+    my ( $self, $text ) = @_;
+
+    $self->{ status_bar }->SetStatusText($self->{ status_text }, 0);
+}
+
+sub doPlayVideo {
     my ( $self ) = @_;
-    my $file = $self->{ inFile }->GetValue;
+    my $file = $self->{ videoFile }->GetValue;
 
     my $vf = "drawtext=text='timestamp\: %{pts \\: hms}':fontsize=72:r=60:x=(w-tw)/2:y=h-(2*lh):fontcolor=white:box=1:boxcolor=0x00000099";
 
     `ffplay -i "$file" -vf "$vf"`;
 }
 
-sub doLoad {
+sub doLoadVideo {
     my ( $self ) = @_;
-    $self->_LoadFile('inFile', 'Load file', '*.*', './');
+    $self->_LoadFile('videoFile', 'Load file', '*.*', './');
 }
 
 sub _LoadFile {
