@@ -45,6 +45,7 @@ use constant _LAYOUT => {
     processing_panel => [
         [ 'StaticText::outFileNameLabel', wxID_ANY, 'Output file:' ],
         [ 'TextCtrl::outFileName', wxID_ANY, './output.mp4', wxDefaultPosition, [120, 34] ],
+
         [ 'Button::doProcess', wxID_ANY, 'Process', wxDefaultPosition, [120, 34] ],
         [ 'Button::playProcessed', wxID_ANY, 'Play', wxDefaultPosition, [120, 34] ],
     ],
