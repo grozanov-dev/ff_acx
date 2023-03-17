@@ -200,10 +200,10 @@ sub doProcess {
     my $filters = [
         @filters,
         'agate=detection=rms:attack=150:release=150:threshold='
-            . sprintf('%.3f', 10 ** ($self->{ Settings }->{ thresholdValue } / 20)),
+            . sprintf('%.3f', 10 ** ($self->{ Settings }{ thresholdValue } / 20)),
 
         'acompressor=attack=5:release=50:ratio=2:makeup=2:threshold='
-            . sprintf('%.3f', 10 ** ($self->{ Settings }->{ loudnessValue  } / 20)),
+            . sprintf('%.3f', 10 ** ($self->{ Settings }{ loudnessValue  } / 20)),
 
         'alimiter=limit=0.7:level=false',
     ];
@@ -221,8 +221,8 @@ sub doProcess {
 
     `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
     `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
-    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name`;
-    `rm $tmp.*`;
+    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name 2>$tmp.1.log`;
+    `rm $tmp.* 2>&1`;
 
     $self->setStatusText;
 }
