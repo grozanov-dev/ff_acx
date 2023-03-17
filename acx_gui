@@ -222,7 +222,9 @@ sub doProcess {
     my $pid = fork;
 
     if ($pid) {
-        # parent process
+        my $dialog = MainWatcher->new( 'Watcher', $pid );
+
+        $dialog->ShowModal;
     } else {
         `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
         `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
@@ -363,6 +365,37 @@ sub BtnEvent {
     my ($self, $evt) = @_;
 
     Wx::Event::EVT_BUTTON($self, $self->{ $evt }->GetId, $self->can( $evt ));
+}
+
+1;
+
+package MainWatcher;
+
+use Wx qw[:everything];
+use base qw(Wx::Dialog);
+use strict;
+
+sub new {
+    my( $self, $title, $pid ) = @_;
+
+    $self = $self->SUPER::new(
+        undef, -1,
+        $title,
+        wxDefaultPosition,
+        Wx::Size->new(200, 100),
+        wxDEFAULT_DIALOG_STYLE,
+        ''
+    );
+
+    my $sizer = Wx::BoxSizer->new(wxHORIZONTAL);
+    my $label = Wx::StaticText->new($self, wxID_ANY, "PID: $pid");
+
+    $sizer->Add($label, 0, 0, 0);
+
+    $self->SetSizer( $sizer );
+    $self->Layout;
+
+    return $self;
 }
 
 1;
