@@ -24,8 +24,10 @@ use JSON qw/decode_json/;
 use Data::Dumper;
 
 use constant _TABS => [
-    [ 'video_panel', 'Video' ],
-    [ 'audio_panel', 'Audio' ],
+    [ 'video_panel', 'Video', 3, 1 ],
+    [ 'audio_panel', 'Audio', 2, 1 ],
+    [ 'settings_panel', 'Settings', 2, 3 ],
+    [ 'processing_panel', 'Process', 2, 2 ],
 ];
 
 use constant _LAYOUT => {
@@ -37,6 +39,25 @@ use constant _LAYOUT => {
     audio_panel => [
         [ 'TextCtrl::audioFile', wxID_ANY, '', wxDefaultPosition, [200, 34] ],
         [ 'Button::doLoadAudio', wxID_ANY, 'Load' ],
+    ],
+    settings_panel => [
+        [ 'StaticText::thresholdLabel', wxID_ANY, 'Threshold (LUFS):' ],
+        [ 'TextCtrl::thresholdValue', wxID_ANY, '' ],
+
+        [ 'StaticText::loudnessLabel', wxID_ANY, 'Loudness (LUFS):' ],
+        [ 'TextCtrl::loudnessValue', wxID_ANY, '' ],
+
+        [ 'StaticText::clapTimestampLabel', wxID_ANY, 'Clap timestamp (c):' ],
+        [ 'TextCtrl::clapTimestampValue', wxID_ANY, '' ],
+
+        [ 'Button::getLoudnessData', wxID_ANY, 'Get loudness data' ],
+        [ 'Button::saveSettings', wxID_ANY, 'Save' ],
+    ],
+    processing_panel => [
+        [ 'StaticText::outFileNameLabel', wxID_ANY, 'Output file:' ],
+        [ 'TextCtrl::outFileName', wxID_ANY, './output.mp4', wxDefaultPosition, [120, 34] ],
+        [ 'Button::doProcess', wxID_ANY, 'Process', wxDefaultPosition, [120, 34] ],
+        [ 'Button::playProcessed', wxID_ANY, 'Play', wxDefaultPosition, [120, 34] ],
     ],
 };
 
@@ -54,7 +75,7 @@ sub new {
         -1,
         $title,
         wxDefaultPosition,
-        Wx::Size->new(400, 200),
+        Wx::Size->new(400, 300),
         wxDEFAULT_DIALOG_STYLE,
         ''
     );
@@ -66,6 +87,10 @@ sub new {
 
     $self->createWidgets('video_panel');
     $self->createWidgets('audio_panel');
+    $self->createWidgets('settings_panel');
+    $self->createWidgets('processing_panel');
+
+    $self->createSettings;
 
     $self->createLayout('main_sizer');
 
@@ -82,12 +107,20 @@ sub createLayout {
     $self->SetStatusBar( $self->{ status_bar } );
     $self->SetSizer( $self->{ $sizer } );
 
-    $self->{ status_text } = sprintf "Treshold: %.2f\tLoudness: %.2f",
-        $self->{ Conf }->{ audio }->{ lra }->@*;
 
     $self->setStatusText;
 
     $self->Layout;
+}
+
+sub setStatusText {
+    my ( $self ) = @_;
+
+    $self->{ status_text } = sprintf "Threshold: %.1f LUFS\tLoudness: %.1f LUFS",
+        $self->{ Settings }->{ thresholdValue },
+        $self->{ Settings }->{ loudnessValue };
+
+    $self->{ status_bar }->SetStatusText($self->{ status_text }, 0);
 }
 
 sub createWidgets {
@@ -101,7 +134,7 @@ sub createWidgets {
         $self->{ $name } = eval { $wxClass->new( $self->{ $tab_name }->{ page }, @$desc ) };
 
         $self->BtnEvent( $name ) if $class eq 'Button';
-        $self->{ $tab_name }->{ sizer }->Add($self->{ $name }, 0, 0, 0);
+        $self->{ $tab_name }->{ sizer }->Add($self->{ $name }, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT, 0);
     }
 }
 
@@ -110,12 +143,12 @@ sub createTabs {
     my $book = Wx::Notebook->new($self, wxID_ANY);
 
     for my $tab ( _TABS()->@* ) {
-        my ($tab_name, $tab_label) = @$tab;
+        my ($tab_name, $tab_label, $cols, $rows) = @$tab;
 
         $self->{ $tab_name } = {};
-        $self->{ $tab_name }->{ sizer} = Wx::BoxSizer->new(wxHORIZONTAL);
-        $self->{ $tab_name }->{ page } = Wx::Panel->new($book, wxID_ANY);
-        $self->{ $tab_name }->{ page }->SetSizer($self->{ $tab_name }->{ sizer });
+        $self->{ $tab_name }->{ sizer } = Wx::FlexGridSizer->new($rows, $cols, 10, 5);
+        $self->{ $tab_name }->{ page  } = Wx::Panel->new($book, wxID_ANY);
+        $self->{ $tab_name }->{ page  }->SetSizer($self->{ $tab_name }->{ sizer });
 
         $book->AddPage($self->{ $tab_name }->{ page }, $tab_label);
     }
@@ -123,17 +156,39 @@ sub createTabs {
     $self->{ $sizer_name }->Add( $book, 1, wxEXPAND, 0 );
 }
 
+sub saveSettings {
+    my ( $self ) = @_;
+
+    map { $self->{ Settings }->{ $_ } = $self->{ $_ }->GetValue } keys $self->{ Settings }->%*;
+
+    $self->setStatusText;
+    $self->createSettings;
+}
+
+sub createSettings {
+    my ( $self ) = @_;
+
+    my ($t, $l) = $self->{ Conf }{ audio }{ lra }->@*;
+
+    for my $field ( keys $self->{ Settings }->%* ) {
+        $self->{ $field }->Clear;
+        $self->{ $field }->WriteText( sprintf( '%.1f', $self->{ Settings }->{ $field } ) );
+    }
+}
+
 sub readConfig {
     my ( $self, $path ) = @_;
     my $config = read_file( $path );
 
     $self->{ Conf } = decode_json( $config );
-}
 
-sub setStatusText {
-    my ( $self, $text ) = @_;
+    my ($t, $l) = $self->{ Conf }{ audio }{ lra }->@*;
 
-    $self->{ status_bar }->SetStatusText($self->{ status_text }, 0);
+    $self->{ Settings } = {
+        thresholdValue      => $t,
+        loudnessValue       => $l,
+        clapTimestampValue  => 5.0, # default
+    };
 }
 
 sub doPlayVideo {
@@ -142,7 +197,48 @@ sub doPlayVideo {
 
     my $vf = "drawtext=text='timestamp\: %{pts \\: hms}':fontsize=72:r=60:x=(w-tw)/2:y=h-(2*lh):fontcolor=white:box=1:boxcolor=0x00000099";
 
-    `ffplay -i "$file" -vf "$vf"`;
+    `ffplay -i "$file" -vf "$vf" 2>&1`;
+}
+
+sub getLoudnessData {
+    my ( $self, $evt ) = @_;
+
+    my $tmp = "/tmp/$0.$$.wav";
+
+    my $s = $self->{ Settings }->{ clapTimestampValue };
+    my $f = $self->{ audioFile }->GetValue;
+
+    $self->{ status_bar }->SetStatusText('Processing...', 0);
+
+    `ffmpeg -ss $s -i "$f" -ac 1 -ar 48k $tmp 2>&1`;
+
+    my $json = `ffmpeg -i $tmp -af loudnorm=dual_mono=true:print_format=json -f null - 2>&1`;
+
+    `rm $tmp 2>&1`;
+
+    $json =~ /(\{[^\{\}]+\})/;
+
+    my $data = decode_json($1) || $evt->Skip;
+
+    $self->{ LoudnessData } = {
+        offset          => $data->{ target_offset },
+        measured_i      => $data->{ input_i },
+        measured_lra    => $data->{ input_lra },
+        measured_tp     => $data->{ input_tp },
+        measured_thresh => $data->{ input_thresh },
+    };
+
+    $self->setStatusText;
+
+    $self->{ Settings }->{ thresholdValue } = $data->{ input_thresh };
+    $self->{ Settings }->{ loudnessValue  } = $data->{ input_i };
+
+    $self->createSettings;
+}
+
+sub doLoadAudio {
+    my ( $self ) = @_;
+    $self->_LoadFile('audioFile', 'Load file', '*.*', './');
 }
 
 sub doLoadVideo {
