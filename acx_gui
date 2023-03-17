@@ -63,18 +63,8 @@ sub new {
         wxDEFAULT_DIALOG_STYLE,
         ''
     );
-    $self->readConfig('./ff_conf.json');
 
     $self->{main_sizer}  = Wx::BoxSizer->new(wxHORIZONTAL);
-
-    $self->createTabs('main_sizer');
-
-    $self->createWidgets('video_panel');
-    $self->createWidgets('audio_panel');
-    $self->createWidgets('settings_panel');
-    $self->createWidgets('processing_panel');
-
-    $self->createSettings;
 
     $self->createLayout('main_sizer');
 
@@ -85,12 +75,15 @@ sub new {
 sub createLayout {
     my ( $self, $sizer ) = @_;
 
+    $self->readConfig('./ff_conf.json');
+    $self->createTabs('main_sizer');
+    $self->createSettings;
+
     $self->{ status_bar } = Wx::StatusBar->new($self, wxID_ANY, wxSB_NORMAL, '');
     $self->{ status_bar }->SetFieldsCount(1);
 
     $self->SetStatusBar( $self->{ status_bar } );
     $self->SetSizer( $self->{ $sizer } );
-
 
     $self->setStatusText;
 
@@ -135,6 +128,8 @@ sub createTabs {
         $self->{ $tab_name }->{ page  }->SetSizer($self->{ $tab_name }->{ sizer });
 
         $book->AddPage($self->{ $tab_name }->{ page }, $tab_label);
+
+        $self->createWidgets( $tab_name );
     }
 
     $self->{ $sizer_name }->Add( $book, 1, wxEXPAND, 0 );
@@ -226,7 +221,7 @@ sub doProcess {
 
     `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
     `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
-    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name 2>&1`;
+    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name`;
     `rm $tmp.*`;
 
     $self->setStatusText;
@@ -283,7 +278,7 @@ sub getLoudnessData {
     my ( $self, $evt ) = @_;
 
     my $f = $self->{ audioFile }->GetValue;
-    my $s = $self->{ Settings }->{ clapTimestampValue };
+    my $s = $self->{ clapTimestampValue }->GetValue;
 
     $self->{ status_bar }->SetStatusText('Getting loudness data...', 0);
 
@@ -291,8 +286,11 @@ sub getLoudnessData {
 
     $self->setStatusText;
 
-    $self->{ Settings }->{ thresholdValue } = $data->{ measured_thresh } + 0.0;
-    $self->{ Settings }->{ loudnessValue  } = $data->{ measured_i } + 0.0;
+    $self->{ Settings } = {
+        thresholdValue     => $data->{ measured_thresh } + 0.0,
+        loudnessValue      => $data->{ measured_i } + 0.0,
+        clapTimestampValue => $s,
+    };
 
     $self->createSettings;
 }
