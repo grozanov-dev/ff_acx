@@ -51,7 +51,7 @@ use constant _LAYOUT => {
         [ 'TextCtrl::clapTimestampValue', wxID_ANY, '' ],
 
         [ 'Button::getLoudnessData', wxID_ANY, 'Get loudness data' ],
-        [ 'Button::saveSettings', wxID_ANY, 'Save' ],
+        [ 'Button::saveSettings', wxID_ANY, 'Use' ],
     ],
     processing_panel => [
         [ 'StaticText::outFileNameLabel', wxID_ANY, 'Output file:' ],
@@ -59,12 +59,6 @@ use constant _LAYOUT => {
         [ 'Button::doProcess', wxID_ANY, 'Process', wxDefaultPosition, [120, 34] ],
         [ 'Button::playProcessed', wxID_ANY, 'Play', wxDefaultPosition, [120, 34] ],
     ],
-};
-
-use constant _STATUS => {
-    threshold  => 0,
-    integrated => 1,
-    progress   => 2,
 };
 
 sub new {
@@ -191,24 +185,132 @@ sub readConfig {
     };
 }
 
+sub doProcess {
+    my ( $self ) = @_;
+    my ($v, $a) = map { $self->{ Conf }->{$_} } qw/video audio/;
+
+    my $to = $self->{ Settings }->{ clapTimestampValue };
+    my $c_filters = $a->{ filters };
+
+    my @filters;
+
+    for my $f_name ( keys %$c_filters) {
+        for my $f_params ( @{ $c_filters->{ $f_name } } ) {
+            push @filters, $f_name . '=' . join ':', map { $_ . '=' . $f_params->{$_} } keys %$f_params;
+        }
+    }
+
+    my $v_opts = sprintf("-c:v %s -b:v %s -vf fps=%s", map { $v->{$_} } qw/codec bitrate framerate/);
+    my $a_opts = sprintf("-c:a %s -b:a %s", map { $a->{$_} } qw/codec bitrate/);
+
+    my $tmp = "/tmp/$0.$$";
+    my $aud = $self->{ audioFile }->GetValue;
+    my $vid = $self->{ videoFile }->GetValue;
+
+    my $ac = $self->_getClapTimestamp( $aud, $to );
+    my $vc = $self->_getClapTimestamp( $vid, $to );
+
+    my $ta = sprintf( "%.2f", $ac - $vc + $to );
+
+    my $filters = [
+        @filters,
+        'agate=detection=rms:attack=150:release=150:threshold='
+            . sprintf('%.3f', 10 ** ($self->{ Settings }->{ thresholdValue } / 20)),
+
+        'acompressor=attack=5:release=50:ratio=2:makeup=2:threshold='
+            . sprintf('%.3f', 10 ** ($self->{ Settings }->{ loudnessValue  } / 20)),
+
+        'alimiter=limit=0.7:level=false',
+    ];
+
+    my $af = join ',', @$filters;
+
+    $self->{ status_bar }->SetStatusText('Processing...', 0);
+
+    `ffmpeg -ss $ta -i "$aud" -ac 1 -af $af $tmp.1.wav 2>&1`;
+
+    my $name = $self->{ outFileName }->GetValue;
+    my $data = $self->_getLoudnessData("$tmp.1.wav", $to);
+
+    my $loud = join ':', map { $_ . '=' . $data->{ $_ } } keys %$data;
+
+    `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
+    `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
+    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name 2>&1`;
+    `rm $tmp.*`;
+
+    $self->setStatusText;
+}
+
 sub doPlayVideo {
     my ( $self ) = @_;
-    my $file = $self->{ videoFile }->GetValue;
+
+    $self->_playVideo( $self->{ videoFile }->GetValue );
+}
+
+sub playProcessed {
+    my ( $self ) = @_;
+
+    $self->_playVideo( $self->{ outFileName }->GetValue );
+}
+
+sub _playVideo {
+    my ( $self, $file ) = @_;
 
     my $vf = "drawtext=text='timestamp\: %{pts \\: hms}':fontsize=72:r=60:x=(w-tw)/2:y=h-(2*lh):fontcolor=white:box=1:boxcolor=0x00000099";
 
     `ffplay -i "$file" -vf "$vf" 2>&1`;
 }
 
-sub getLoudnessData {
-    my ( $self, $evt ) = @_;
+sub _getClapTimestamp {
+    my ( $self, $file, $to ) = @_;
 
     my $tmp = "/tmp/$0.$$.wav";
 
-    my $s = $self->{ Settings }->{ clapTimestampValue };
-    my $f = $self->{ audioFile }->GetValue;
+    `ffmpeg -to $to -i "$file" -ac 1 $tmp 2>&1`;
 
-    $self->{ status_bar }->SetStatusText('Processing...', 0);
+    my $log = `ffmpeg -nostats -i $tmp -filter_complex ebur128=peak=true -f null - 2>&1`;
+
+    `rm $tmp`;
+
+    $log =~ /Peak:\s+(-?[0-9\.]+)/;
+
+    my $peak = $1;
+
+    for ( split /\n/, $log ) {
+        next unless m/Parsed_ebur128/;
+        next if m/Summary/;
+        next if m/inf/;
+
+        my @P = split /[\s\:]+/;
+        my ($t, $tpk) = map { $P[$_] } 4, 22;
+
+        return $t if $tpk == $peak;
+    }
+}
+
+sub getLoudnessData {
+    my ( $self, $evt ) = @_;
+
+    my $f = $self->{ audioFile }->GetValue;
+    my $s = $self->{ Settings }->{ clapTimestampValue };
+
+    $self->{ status_bar }->SetStatusText('Getting loudness data...', 0);
+
+    my $data = $self->_getLoudnessData($f, $s);
+
+    $self->setStatusText;
+
+    $self->{ Settings }->{ thresholdValue } = $data->{ measured_thresh } + 0.0;
+    $self->{ Settings }->{ loudnessValue  } = $data->{ measured_i } + 0.0;
+
+    $self->createSettings;
+}
+
+sub _getLoudnessData {
+    my ( $self, $f, $s ) = @_;
+
+    my $tmp = "/tmp/$0.$$.wav";
 
     `ffmpeg -ss $s -i "$f" -ac 1 -ar 48k $tmp 2>&1`;
 
@@ -218,9 +320,8 @@ sub getLoudnessData {
 
     $json =~ /(\{[^\{\}]+\})/;
 
-    my $data = decode_json($1) || $evt->Skip;
-
-    $self->{ LoudnessData } = {
+    my $data = decode_json($1);
+    my $lmap = {
         offset          => $data->{ target_offset },
         measured_i      => $data->{ input_i },
         measured_lra    => $data->{ input_lra },
@@ -228,12 +329,7 @@ sub getLoudnessData {
         measured_thresh => $data->{ input_thresh },
     };
 
-    $self->setStatusText;
-
-    $self->{ Settings }->{ thresholdValue } = $data->{ input_thresh };
-    $self->{ Settings }->{ loudnessValue  } = $data->{ input_i };
-
-    $self->createSettings;
+    return $lmap;
 }
 
 sub doLoadAudio {
