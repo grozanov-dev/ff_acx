@@ -19,111 +19,113 @@ package MainFrame;
 use Wx qw[:everything];
 use base qw(Wx::Frame);
 use strict;
+use File::Slurp qw/read_file/;
+use JSON qw/decode_json/;
+use Data::Dumper;
+
+use constant _TABS => [
+    [ 'video_panel', 'Video' ],
+    [ 'audio_panel', 'Audio' ],
+];
+
+use constant _LAYOUT => {
+    video_panel => [
+        [ 'TextCtrl::inFile', wxID_ANY, '', wxDefaultPosition, [200, 34] ],
+        [ 'Button::doLoad',   wxID_ANY, 'Load' ],
+        [ 'Button::doPlay',   wxID_ANY, 'Play' ],
+    ],
+};
+
 
 sub new {
-    my( $self, $parent, $id, $title, $pos, $size, $style, $name ) = @_;
+    my( $self, $title ) = @_;
 
-    $parent = undef              unless defined $parent;
-    $id     = -1                 unless defined $id;
-    $title  = "ACX Sync"         unless defined $title;
-    $pos    = wxDefaultPosition  unless defined $pos;
-    $size   = wxDefaultSize      unless defined $size;
-    $name   = ""                 unless defined $name;
+    $self = $self->SUPER::new(
+        undef,
+        -1,
+        $title,
+        wxDefaultPosition,
+        Wx::Size->new(800, 600),
+        wxDEFAULT_DIALOG_STYLE,
+        ''
+    );
 
-    $style = wxDEFAULT_FRAME_STYLE unless defined $style;
+    $self->readConfig('./ff_conf.json');
 
-    $self = $self->SUPER::new( $parent, $id, $title, $pos, $size, $style, $name );
+    $self->{main_sizer}  = Wx::BoxSizer->new(wxHORIZONTAL);
 
-    $self->{sizer} = Wx::FlexGridSizer->new(3, 2, 10, 5);
+    $self->createTabs('main_sizer');
+    $self->createWidgets('video_panel');
 
-    $self->set_file_input('_getVideoFile', 'Get Video file');
-    $self->set_file_input('_getAudioFile', 'Get Audio file');
-
-    $self->set_input_text('_outputFileName', 'Output file:',    100, '~/output.mp4');
-    $self->set_input_text('_silenceLength',  'Silence lenght (sec):', 100, '5.0');
-
-    $self->set_action_btn('_doSync', 'Sync!');
-
-    $self->SetSizer($self->{sizer});
-    $self->Layout();
+    $self->createLayout('main_sizer');
 
     return $self;
 
 }
 
-sub set_action_btn {
-    my ($self, $name, $label) = @_;
+sub createLayout {
+    my ( $self, $sizer ) = @_;
 
-    my $button = 'button' . $name;
+    $self->SetSizer( $self->{ $sizer } );
 
-    $self->{$button} = Wx::Button->new($self, wxID_ANY, $label);
-
-    $self->{sizer}->Add($self->{$button}, 0, wxALIGN_RIGHT, 0);
-
-    $self->set_btn_event($name);
+    $self->Layout;
 }
 
-sub set_file_input {
-    my ($self, $name, $label) = @_;
+sub createWidgets {
+    my ($self, $tab_name) = @_;
+    my $layout = _LAYOUT()->{ $tab_name };
 
-    my $text   = 'text' . $name;
-    my $button = 'button' . $name;
+    for my $desc ( @$layout ) {
+        my ($class, $name) = split /::/, shift @$desc;
+        my $wxClass = 'Wx::' . $class;
 
-    $self->{$button} = Wx::Button->new($self, wxID_ANY, $label);
+        $self->{ $name } = eval { $wxClass->new( $self->{ $tab_name }->{ page }, @$desc ) };
 
-    $self->{$text} = Wx::TextCtrl->new($self, wxID_ANY, '');
-    $self->{$text}->SetMinSize(Wx::Size->new(250, 34));
-
-    $self->{sizer}->Add($self->{$text},   0, 0, 0);
-    $self->{sizer}->Add($self->{$button}, 0, 0, 0);
-
-    $self->set_btn_event( $name );
+        $self->BtnEvent( $name ) if $class eq 'Button';
+        $self->{ $tab_name }->{ sizer }->Add($self->{ $name }, 0, 0, 0);
+    }
 }
 
-sub set_input_text {
-    my ($self, $name, $label, $size, $default) = @_;
+sub createTabs {
+    my ( $self, $sizer_name ) = @_;
+    my $book = Wx::Notebook->new($self, wxID_ANY);
 
-    my $text   = 'text'  . $name;
-    my $static = 'label' . $name;
+    for my $tab ( _TABS()->@* ) {
+        my ($tab_name, $tab_label) = @$tab;
 
-    $self->{$static} = Wx::StaticText->new($self, wxID_ANY, $label);
+        $self->{ $tab_name } = {};
+        $self->{ $tab_name }->{ sizer } = Wx::BoxSizer->new(wxHORIZONTAL);
+        $self->{ $tab_name }->{ page  } = Wx::Panel->new($book, wxID_ANY);
+        $self->{ $tab_name }->{ page }->SetSizer($self->{ $tab_name }->{ sizer });
 
-    $self->{$text} = Wx::TextCtrl->new($self, wxID_ANY, $default);
-    $self->{$text}->SetMinSize(Wx::Size->new($size, 34));
+        $book->AddPage($self->{ $tab_name }->{ page }, $tab_label);
+    }
 
-    $self->{sizer}->Add($self->{$static}, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT, 0);
-    $self->{sizer}->Add($self->{$text}, 0, 0, 0);
-
+    $self->{ $sizer_name }->Add( $book, 1, wxEXPAND, 0 );
 }
 
-sub set_btn_event {
-    my ($self, $event) = @_;
+sub readConfig {
+    my ( $self, $path ) = @_;
+    my $config = read_file( $path );
 
-    Wx::Event::EVT_BUTTON($self, $self->{'button' . $event}->GetId, $self->can( $event ));
+    $self->{Conf} = decode_json( $config );
 }
 
-sub _doSync {
-    my ($self, $event) = @_;
+sub doPlay {
+    my ( $self ) = @_;
+    my $file = $self->{ inFile }->GetValue;
 
-    my ($v, $a, $o, $s) = map { $self->{$_}->GetValue() }
-        qw/text_getVideoFile text_getAudioFile text_outputFileName text_silenceLength/;
+    my $vf = "drawtext=text='timestamp\: %{pts \\: hms}':fontsize=72:r=60:x=(w-tw)/2:y=h-(2*lh):fontcolor=white:box=1:boxcolor=0x00000099";
 
-    `./ff_sync -v "$v" -a "$a" -o $o -s $s `;
+    `ffplay -i "$file" -vf "$vf"`;
 }
 
-sub _getVideoFile {
-    my ($self, $event) = @_;
-
-    $self->_getFile( 'text_getVideoFile', 'Video file', '*.*', '~/' );
+sub doLoad {
+    my ( $self ) = @_;
+    $self->_LoadFile('inFile', 'Load file', '*.*', './');
 }
 
-sub _getAudioFile {
-    my ($self, $event) = @_;
-
-    $self->_getFile( 'text_getAudioFile', 'Audio file', '*.*', '~/' );
-}
-
-sub _getFile {
+sub _LoadFile {
     my ($self, $field, $caption, $wildcard, $defaultDir) = @_;
 
     my $fileDialog = Wx::FileDialog->new(
@@ -142,6 +144,14 @@ sub _getFile {
 
     $self->{ $field }->Clear();
     $self->{ $field }->WriteText($dir . '/' . $file);
+
+    $self->{ $field }->Clear() if $status == wxID_CANCEL;
+}
+
+sub BtnEvent {
+    my ($self, $evt) = @_;
+
+    Wx::Event::EVT_BUTTON($self, $self->{ $evt }->GetId, $self->can( $evt ));
 }
 
 1;
@@ -156,7 +166,7 @@ sub OnInit {
 
     Wx::InitAllImageHandlers();
 
-    my $frame = MainFrame->new();
+    my $frame = MainFrame->new( 'ACX Tools' );
 
     $self->SetTopWindow($frame);
     $frame->Show(1);
