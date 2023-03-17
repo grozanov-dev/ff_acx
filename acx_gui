@@ -219,10 +219,16 @@ sub doProcess {
 
     my $loud = join ':', map { $_ . '=' . $data->{ $_ } } keys %$data;
 
-    `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
-    `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
-    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name`;
-    `rm $tmp.*`;
+    my $pid = fork;
+
+    if ($pid) {
+        # parent process
+    } else {
+        `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
+        `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
+        `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name 2>$tmp.1.log`;
+        `rm $tmp.*`;
+    }
 
     $self->setStatusText;
 }
