@@ -211,7 +211,6 @@ sub doProcess {
 
     my $af = join ',', @$filters;
 
-    $self->{ status_bar }->SetStatusText('Processing...', 0);
 
     `ffmpeg -ss $ta -i "$aud" -ac 1 -af $af $tmp.1.wav 2>&1`;
 
@@ -222,10 +221,22 @@ sub doProcess {
 
     `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
     `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
-    `ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name 2>$tmp.1.log`;
-    `rm $tmp.* 2>&1`;
 
-    $self->setStatusText;
+    $self->mainWorker( $tmp, $v_opts, $a_opts, $name );
+}
+
+sub mainWorker {
+    my ( $self, $tmp, $v_opts, $a_opts, $name ) = @_;
+
+    eval {
+        open FH, '-|', "ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name 2>&1";
+
+        $self->{ status_bar }->SetStatusText($_, 0) while <FH>;
+
+        close FH;
+
+        $self->setStatusText;
+    };
 }
 
 sub doViewWaveform {
