@@ -15,7 +15,7 @@ use Data::Dumper;
 use constant _TABS => [
     [ 'video_panel', 'Video', 3, 1 ],
     [ 'audio_panel', 'Audio', 2, 1 ],
-    [ 'settings_panel', 'Settings', 2, 3 ],
+    [ 'settings_panel', 'Settings', 2, 4 ],
     [ 'processing_panel', 'Process', 2, 2 ],
 ];
 
@@ -36,7 +36,7 @@ use constant _LAYOUT => {
         [ 'StaticText::loudnessLabel', wxID_ANY, 'Loudness (LUFS):' ],
         [ 'TextCtrl::loudnessValue', wxID_ANY, '' ],
 
-        [ 'StaticText::clapTimestampLabel', wxID_ANY, 'Clap timestamp (c):' ],
+        [ 'StaticText::clapTimestampLabel', wxID_ANY, 'Clap timestamp (s):' ],
         [ 'TextCtrl::clapTimestampValue', wxID_ANY, '' ],
 
         [ 'Button::getLoudnessData', wxID_ANY, 'Get loudness data' ],
