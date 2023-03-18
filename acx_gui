@@ -234,7 +234,7 @@ sub doViewWaveform {
     my $file = $self->{ audioFile }->GetValue;
     my $img  = "/tmp/$0.$$.png";
 
-    $self->{ status_bar }->SetStatusText('Starting GNUplot...', 0);
+    $self->{ status_bar }->SetStatusText('Rendering Waveform...', 0);
 
     `ffmpeg -i "$file" -filter_complex "compand,showwavespic=s=640x480::split_channels=1" -frames:v 1 $img 2>&1`;
 
@@ -428,11 +428,18 @@ sub OnInit {
     return 1;
 }
 
+sub OnExit {
+    my( $self ) = shift;
+
+    `rm /tmp/$0.$$.*`;
+}
+
 package main;
 
 unless(caller){
-    my $acx = ACXSync->new();
-    $acx->MainLoop();
+    my $acx = ACXSync->new;
+
+    $acx->MainLoop;
 }
 
 1;
