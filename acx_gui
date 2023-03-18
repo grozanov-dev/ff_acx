@@ -423,23 +423,22 @@ sub OnInit {
     my $frame = MainFrame->new( 'ACX Tools' );
 
     $self->SetTopWindow($frame);
-    $frame->Show;
+
+    $frame->Show(1);
 
     return 1;
 }
 
 sub OnExit {
     my( $self ) = shift;
-
-    `rm /tmp/$0.$$.*`;
 }
 
 package main;
 
 unless(caller){
-    my $acx = ACXSync->new;
+    my $acx = ACXSync->new();
 
-    $acx->MainLoop;
+    $acx->MainLoop();
 }
 
 1;
