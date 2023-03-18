@@ -212,31 +212,32 @@ sub doProcess {
     my $af = join ',', @$filters;
 
 
-    `ffmpeg -ss $ta -i "$aud" -ac 1 -af $af $tmp.1.wav 2>&1`;
+    $self->_do( "ffmpeg -ss $ta -i \"$aud\" -ac 1 -af $af $tmp.1.wav 2>&1");
 
     my $name = $self->{ outFileName }->GetValue;
     my $data = $self->_getLoudnessData("$tmp.1.wav", $to);
 
     my $loud = join ':', map { $_ . '=' . $data->{ $_ } } keys %$data;
 
-    `ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav 2>&1`;
-    `ffmpeg -ss $to -i "$vid" -c copy -an $tmp.1.mp4 2>&1`;
-
-    $self->mainWorker( $tmp, $v_opts, $a_opts, $name );
+    $self->_do(
+        "ffmpeg -i $tmp.1.wav -ac 1 -af loudnorm=dual_mono=true:i=-19.0:lra=6.0:tp=-4.0:$loud,aresample=resampler=soxr:out_sample_rate=48000:precision=28 $tmp.2.wav",
+        "ffmpeg -ss $to -i \"$vid\" -c copy -an $tmp.1.mp4",
+        "ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name",
+    );
 }
 
-sub mainWorker {
-    my ( $self, $tmp, $v_opts, $a_opts, $name ) = @_;
+sub _do {
+    my $self = shift;
 
-    eval {
-        open FH, '-|', "ffmpeg -y -i $tmp.1.mp4 -i $tmp.2.wav $v_opts $a_opts $name 2>&1";
+    for my $cmd (@_) {
+        eval {
+            open FH, '-|', "$cmd 2>&1";
+            $self->{ status_bar }->SetStatusText($_, 0) while <FH>;
+            close FH;
+        };
+    }
 
-        $self->{ status_bar }->SetStatusText($_, 0) while <FH>;
-
-        close FH;
-
-        $self->setStatusText;
-    };
+    $self->setStatusText;
 }
 
 sub doViewWaveform {
@@ -247,7 +248,7 @@ sub doViewWaveform {
 
     $self->{ status_bar }->SetStatusText('Rendering Waveform...', 0);
 
-    `ffmpeg -i "$file" -filter_complex "compand,showwavespic=s=640x480::split_channels=1" -frames:v 1 $img 2>&1`;
+    $self->_do( "ffmpeg -i \"$file\" -filter_complex \"compand,showwavespic=s=640x480::split_channels=1\" -frames:v 1 $img" );
 
     my $viewer = ImgViewer->new( $self, $self->{ audioFile }->GetValue, $img );
 
@@ -272,7 +273,7 @@ sub _playVideo {
 
     my $vf = "drawtext=text='timestamp\: %{pts \\: hms}':fontsize=72:r=60:x=(w-tw)/2:y=h-(2*lh):fontcolor=white:box=1:boxcolor=0x00000099";
 
-    `ffplay -i "$file" -vf "$vf" 2>&1`;
+    $self->_do( "ffplay -i \"$file\" -vf \"$vf\"" );
 }
 
 sub _getClapTimestamp {
