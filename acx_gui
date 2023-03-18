@@ -241,7 +241,7 @@ sub doViewWaveform {
     my $viewer = ImgViewer->new( $self, $self->{ audioFile }->GetValue, $img );
 
     $self->setStatusText;
-    $viewer->ShowModal;
+    $viewer->Show;
 }
 
 sub doPlayVideo {
