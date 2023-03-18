@@ -14,7 +14,7 @@ use Data::Dumper;
 
 use constant _TABS => [
     [ 'video_panel', 'Video', 3, 1 ],
-    [ 'audio_panel', 'Audio', 2, 1 ],
+    [ 'audio_panel', 'Audio', 3, 1 ],
     [ 'settings_panel', 'Settings', 2, 4 ],
     [ 'processing_panel', 'Process', 2, 2 ],
 ];
@@ -28,6 +28,7 @@ use constant _LAYOUT => {
     audio_panel => [
         [ 'TextCtrl::audioFile', wxID_ANY, '', wxDefaultPosition, [200, 34] ],
         [ 'Button::doLoadAudio', wxID_ANY, 'Load' ],
+        [ 'Button::doViewWaveform', wxID_ANY, 'View' ],
     ],
     settings_panel => [
         [ 'StaticText::thresholdLabel', wxID_ANY, 'Threshold (LUFS):' ],
@@ -227,6 +228,22 @@ sub doProcess {
     $self->setStatusText;
 }
 
+sub doViewWaveform {
+    my ( $self ) = @_;
+
+    my $file = $self->{ audioFile }->GetValue;
+    my $img  = "/tmp/$0.$$.png";
+
+    $self->{ status_bar }->SetStatusText('Starting GNUplot...', 0);
+
+    `ffmpeg -i "$file" -filter_complex "compand,showwavespic=s=640x480::split_channels=1" -frames:v 1 $img 2>&1`;
+
+    my $viewer = ImgViewer->new( $self, $self->{ audioFile }->GetValue, $img );
+
+    $self->setStatusText;
+    $viewer->ShowModal;
+}
+
 sub doPlayVideo {
     my ( $self ) = @_;
 
@@ -361,6 +378,38 @@ sub BtnEvent {
 
 1;
 
+package ImgViewer;
+
+use Wx qw[:everything];
+use base qw(Wx::Dialog);
+use strict;
+
+sub new {
+    my( $self, $parent, $title, $img ) = @_;
+
+    $self = $self->SUPER::new(
+        $parent, -1,
+        $title,
+        wxDefaultPosition,
+        Wx::Size->new(640, 480),
+        wxDEFAULT_DIALOG_STYLE,
+        ''
+    );
+
+    my $sizer = Wx::BoxSizer->new(wxVERTICAL);
+    my $bitmap = Wx::StaticBitmap->new($self, wxID_ANY, Wx::Bitmap->new($img, wxBITMAP_TYPE_ANY));
+
+    $sizer->Add($bitmap, 0, 0, 0);
+
+    $self->SetSizer($sizer);
+    $self->Layout;
+
+    return $self;
+
+}
+
+1;
+
 package ACXSync;
 
 use base qw(Wx::App);
@@ -374,7 +423,7 @@ sub OnInit {
     my $frame = MainFrame->new( 'ACX Tools' );
 
     $self->SetTopWindow($frame);
-    $frame->Show(1);
+    $frame->Show;
 
     return 1;
 }
