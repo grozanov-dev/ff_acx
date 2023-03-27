@@ -10,7 +10,6 @@ use base qw(Wx::Frame);
 use strict;
 use File::Slurp qw/read_file/;
 use JSON qw/decode_json/;
-use Data::Dumper;
 
 use constant _TABS => [
     [ 'video_panel', 'Video', 3, 1 ],
@@ -228,16 +227,24 @@ sub doProcess {
 
 sub _ff {
     my $self = shift;
+    my @res;
 
     for my $cmd (@_) {
         eval {
+            local $/ = "\r";
             open FH, '-|', 'ffmpeg ' . $cmd . ' 2>&1';
-            $self->{ status_bar }->SetStatusText($_, 0) while <FH>;
+            while (<FH>) {
+                chomp;
+                push @res, $_;
+
+                $self->{ status_bar }->SetStatusText($_, 0);
+            }
             close FH;
         };
     }
 
     $self->setStatusText;
+    return join "\n", @res;
 }
 
 sub doViewWaveform {
@@ -248,7 +255,7 @@ sub doViewWaveform {
 
     $self->{ status_bar }->SetStatusText('Rendering Waveform...', 0);
 
-    `ffmpeg -i \"$file\" -filter_complex \"compand,showwavespic=s=640x480::split_channels=1\" -frames:v 1 $img 2>&1`;
+    $self->_ff( "-i \"$file\" -filter_complex \"compand,showwavespic=s=640x480::split_channels=1\" -frames:v 1 $img" );
 
     my $viewer = ImgViewer->new( $self, $self->{ audioFile }->GetValue, $img );
 
@@ -273,7 +280,7 @@ sub _playVideo {
 
     my $vf = "drawtext=text='timestamp\: %{pts \\: hms}':fontsize=72:r=60:x=(w-tw)/2:y=h-(2*lh):fontcolor=white:box=1:boxcolor=0x00000099";
 
-    `ffplay -i \"$file\" -vf \"$vf\" 2>&1`;
+    `ffplay -i "$file" -vf "$vf" 2>&1`;
 }
 
 sub _getClapTimestamp {
@@ -281,9 +288,10 @@ sub _getClapTimestamp {
 
     my $tmp = "/tmp/$0.$$.wav";
 
-    `ffmpeg -to $to -i "$file" -ac 1 $tmp 2>&1`;
-
-    my $log = `ffmpeg -nostats -i $tmp -filter_complex ebur128=peak=true -f null - 2>&1`;
+    my $log = $self->_ff(
+        "-to $to -i \"$file\" -ac 1 $tmp",
+        "-nostats -i $tmp -filter_complex ebur128=peak=true -f null -"
+    );
 
     `rm $tmp`;
 
@@ -329,11 +337,12 @@ sub _getLoudnessData {
 
     my $tmp = "/tmp/$0.$$.wav";
 
-    `ffmpeg -ss $s -i "$f" -ac 1 -ar 48k $tmp 2>&1`;
+    my $json = $self->_ff(
+        "-ss $s -i \"$f\" -ac 1 -ar 48k $tmp",
+        "-i $tmp -af loudnorm=dual_mono=true:print_format=json -f null -"
+    );
 
-    my $json = `ffmpeg -i $tmp -af loudnorm=dual_mono=true:print_format=json -f null - 2>&1`;
-
-    `rm $tmp 2>&1`;
+    `rm $tmp`;
 
     $json =~ /(\{[^\{\}]+\})/;
 
@@ -371,10 +380,10 @@ sub _LoadFile {
         wxFD_OPEN
     );
 
-    my $status = $fileDialog->ShowModal();
+    my $status = $fileDialog->ShowModal;
 
-    my $dir  = $fileDialog->GetDirectory();
-    my $file = $fileDialog->GetFilename();
+    my $dir  = $fileDialog->GetDirectory;
+    my $file = $fileDialog->GetFilename;
 
     $self->{ $field }->Clear();
     $self->{ $field }->WriteText($dir . '/' . $file);
@@ -436,21 +445,19 @@ sub OnInit {
 
     $self->SetTopWindow($frame);
 
-    $frame->Show(1);
+    $frame->Show;
 
     return 1;
 }
 
-sub OnExit {
-    my( $self ) = shift;
-}
-
 package main;
 
-unless(caller){
-    my $acx = ACXSync->new();
+use strict;
+use warnings;
 
-    $acx->MainLoop();
+unless( caller ) {
+    my $acx = ACXSync->new;
+    $acx->MainLoop;
 }
 
 1;
