@@ -18,7 +18,6 @@ Params:
     -o -- output file
     -s -- silence in seconds
 
-Config structure:
 # ff_conf.json
 ```json
 {
@@ -48,6 +47,9 @@ Config structure:
 }
 ```
 Instructions:
+
+    - To install wxPerl:
+       $ cpan -i Wx
 
     - Start recording audio with your recorder.
     - Start recording video with your camera (with camera mic on).

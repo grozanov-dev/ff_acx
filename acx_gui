@@ -10,6 +10,7 @@ use base qw(Wx::Frame);
 use strict;
 use File::Slurp qw/read_file/;
 use JSON qw/decode_json/;
+use threads;
 
 use constant _TABS => [
     [ 'video_panel', 'Video', 3, 1 ],
@@ -229,23 +230,27 @@ sub _ff {
     my $self = shift;
     my @res;
 
+    $self->{ status_bar }->SetStatusText("Processing...", 0);
+
     for my $cmd (@_) {
         eval {
             local $/ = "\r";
             open FH, '-|', 'ffmpeg ' . $cmd . ' 2>&1';
+
             while (<FH>) {
                 chomp;
                 push @res, $_;
 
-                /frame=\s+([0-9]+).+?time=(\d\d\:\d\d:\d\d\.\d\d)/;
-
-                $self->{ status_bar }->SetStatusText("Frame: $1\tTime: $2", 0) if $1 && $2;
+                if ( m/frame=\s+([0-9]+).+time=(\d\d\:\d\d:\d\d\.\d\d)/ ) {
+                    $self->{ status_bar }->SetStatusText("Frame: $1\tTime: $2", 0);
+                }
             }
             close FH;
         };
     }
 
     $self->setStatusText;
+
     return join "\n", @res;
 }
 
@@ -465,3 +470,6 @@ unless( caller ) {
 1;
 
 =pod
+
+To install wxPerl:
+ $ cpan -i Wx
