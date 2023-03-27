@@ -1,3 +1,16 @@
+# acx_gui
+wxPerl GUI frontend
+
+    - To install wxPerl:
+       $ cpan -i Wx
+
+    - Pick Video file.
+    - Pick Audio file.
+    - Enter silence length (in seconds).
+    - Click "Get Loudness data" if needed.
+    - Click "Use".
+    - Click "Process".
+
 # ff_acx
 ffmpeg based script that sync separate recorded audio and video and makeup audio to meet ACX.
 
@@ -47,9 +60,6 @@ Params:
 }
 ```
 Instructions:
-
-    - To install wxPerl:
-       $ cpan -i Wx
 
     - Start recording audio with your recorder.
     - Start recording video with your camera (with camera mic on).

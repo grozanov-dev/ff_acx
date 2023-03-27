@@ -10,7 +10,6 @@ use base qw(Wx::Frame);
 use strict;
 use File::Slurp qw/read_file/;
 use JSON qw/decode_json/;
-use threads;
 
 use constant _TABS => [
     [ 'video_panel', 'Video', 3, 1 ],
