@@ -237,7 +237,9 @@ sub _ff {
                 chomp;
                 push @res, $_;
 
-                $self->{ status_bar }->SetStatusText($_, 0);
+                /frame=\s+([0-9]+).+?time=(\d\d\:\d\d:\d\d\.\d\d)/;
+
+                $self->{ status_bar }->SetStatusText("Frame: $1\tTime: $2", 0) if $1 && $2;
             }
             close FH;
         };
