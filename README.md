@@ -84,7 +84,7 @@ Instructions:
 
     - Check the silence length in video stream:
         ! The silence in video before start of content cannot be longer than the silence before clap in audio.
-        ! Alson clap in audio can not appear before clap in video (just start record audio before video).
+        ! Also clap in audio can not appear before clap in video (just start record audio before video).
 
     v Ok:
                /----- 5 sec -----\/- content -\
