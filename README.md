@@ -1,8 +1,8 @@
 # acx_gui
-wxPerl GUI frontend
+wxPerl GUI frontend (PAR::Packer bundle)
 
-    - To install wxPerl:
-       $ cpan -i Wx
+    - To run app:
+       $ ./acx_gui &
 
     - Pick Video file.
     - Pick Audio file.
