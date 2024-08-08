@@ -1,7 +1,9 @@
 #!/usr/bin/perl
 
-use Wx qw[:allclasses];
 use strict;
+use warnings;
+
+ACXSync->new;
 
 package MainFrame;
 
@@ -76,7 +78,7 @@ sub createLayout {
     my ( $self, $sizer ) = @_;
 
     $self->readConfig('./ff_conf.json');
-    $self->createTabs('main_sizer');
+    $self->createTabs($sizer);
     $self->createSettings;
 
     $self->{ status_bar } = Wx::StatusBar->new($self, wxID_ANY, wxSB_NORMAL, '');
@@ -209,7 +211,6 @@ sub doProcess {
     ];
 
     my $af = join ',', @$filters;
-
 
     $self->_ff( "-ss $ta -i \"$aud\" -ac 1 -af $af $tmp.1.wav");
 
@@ -432,7 +433,6 @@ sub new {
     $self->Layout;
 
     return $self;
-
 }
 
 1;
@@ -446,11 +446,11 @@ use warnings;
 sub OnInit {
     my( $self ) = shift;
 
+    exit 1 if fork;
+
     Wx::InitAllImageHandlers();
 
     my $frame = MainFrame->new( 'ACX Tools' );
-
-    $self->SetTopWindow($frame);
 
     $frame->Show;
     $self->MainLoop;
@@ -458,19 +458,7 @@ sub OnInit {
     return 1;
 }
 
-package main;
-
-use strict;
-use warnings;
-
-ACXSync->new;
-
-1;
-
 =pod
-
-To install wxPerl:
- $ cpan -i Wx
 
 Run app:
  $ acx_gui &
